@@ -97,7 +97,9 @@ function clearError() {
 function getFriendlyError(error, fallback) {
   if (!error) return fallback || "Something went wrong.";
   if (typeof error === "string") return error;
-  if (error.code === "permission-denied") return "Permission denied for this action.";
+  if (error.code === "permission-denied") {
+    return "Permission denied. Check Firestore rules (room fields must match: roomCode, creatorID, createdAt) and that Anonymous sign-in is enabled.";
+  }
   if (error.code === "unavailable") return "Network unavailable. Check internet and retry.";
   if (error.code === "unauthenticated") return "Authentication is not ready. Please retry.";
   if (error.code === "not-found") return "Requested room or message was not found.";
@@ -256,12 +258,17 @@ async function tryCreateRoom() {
   }
 
   const creatorID = getCreatorID();
+  // Room doc must match Firestore rules (often only roomCode, creatorID, createdAt).
+  // Display name is kept client-side so rules don't reject extra fields.
   await setDoc(roomRef, {
     roomCode,
     creatorID,
-    creatorName,
     createdAt: serverTimestamp()
   });
+
+  try {
+    localStorage.setItem(`shareyourmind:name:${roomName}:${creatorID}`, creatorName);
+  } catch {}
 
   currentRoomName = roomName;
   currentRoomData = { roomCode, creatorID, creatorName };
