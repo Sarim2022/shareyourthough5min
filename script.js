@@ -46,6 +46,7 @@ const el = {
   openSearchBtn: document.getElementById("openSearchBtn"),
   closeModalBtn: document.getElementById("closeModalBtn"),
   createRoomBtn: document.getElementById("createRoomBtn"),
+  createError: document.getElementById("createError"),
   searchArea: document.getElementById("searchArea"),
   searchInput: document.getElementById("searchInput"),
   searchResults: document.getElementById("searchResults"),
@@ -92,6 +93,18 @@ function showError(message) {
 function clearError() {
   el.error.textContent = "";
   el.error.hidden = true;
+}
+
+function showCreateError(message) {
+  if (!el.createError) return;
+  el.createError.textContent = message || "Could not create room.";
+  el.createError.hidden = false;
+}
+
+function clearCreateError() {
+  if (!el.createError) return;
+  el.createError.textContent = "";
+  el.createError.hidden = true;
 }
 
 function getFriendlyError(error, fallback) {
@@ -282,11 +295,13 @@ async function tryCreateRoom() {
 
 function openModal() {
   clearError();
+  clearCreateError();
   showStatus("");
   el.modal.hidden = false;
 }
 
 function closeModal() {
+  clearCreateError();
   el.modal.hidden = true;
 }
 
@@ -431,7 +446,15 @@ async function runAction(action, fallbackMessage) {
 function bindEvents() {
   el.openCreateBtn.addEventListener("click", openModal);
   el.closeModalBtn.addEventListener("click", closeModal);
-  el.createRoomBtn.addEventListener("click", () => runAction(tryCreateRoom, "Failed to create room."));
+  el.createRoomBtn.addEventListener("click", async () => {
+    clearCreateError();
+    clearError();
+    try {
+      await tryCreateRoom();
+    } catch (error) {
+      showCreateError(getFriendlyError(error, "Failed to create room."));
+    }
+  });
   el.openSearchBtn.addEventListener("click", () => {
     el.searchArea.hidden = !el.searchArea.hidden;
   });
@@ -485,6 +508,7 @@ function bindEvents() {
   [el.newCreatorNameInput, el.joinNameInput].forEach((input) => {
     input.addEventListener("input", () => {
       setInputError(input, false);
+      clearCreateError();
       clearError();
     });
   });
