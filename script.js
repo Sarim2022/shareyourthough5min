@@ -45,17 +45,40 @@
     return bytes;
   }
 
+  function utf8ToBytes(str) {
+    // Prefer TextEncoder, fallback for older browsers.
+    if (typeof TextEncoder !== "undefined") {
+      return new TextEncoder().encode(str);
+    }
+
+    const utf8 = unescape(encodeURIComponent(str));
+    const bytes = new Uint8Array(utf8.length);
+    for (let i = 0; i < utf8.length; i++) bytes[i] = utf8.charCodeAt(i);
+    return bytes;
+  }
+
+  function bytesToUtf8(bytes) {
+    // Prefer TextDecoder, fallback for older browsers.
+    if (typeof TextDecoder !== "undefined") {
+      return new TextDecoder().decode(bytes);
+    }
+
+    let ascii = "";
+    for (let i = 0; i < bytes.length; i++) ascii += String.fromCharCode(bytes[i]);
+    return decodeURIComponent(escape(ascii));
+  }
+
   function encodeSharePayload(text, expiresAt) {
     // Self-contained payload so other devices can decode it without a backend.
     const payload = JSON.stringify({ text, expiresAt });
-    const bytes = new TextEncoder().encode(payload);
+    const bytes = utf8ToBytes(payload);
     return base64UrlEncode(bytes);
   }
 
   function decodeSharePayload(encoded) {
     try {
       const bytes = base64UrlDecodeToBytes(encoded);
-      const payloadStr = new TextDecoder().decode(bytes);
+      const payloadStr = bytesToUtf8(bytes);
       const parsed = JSON.parse(payloadStr);
       if (!parsed || typeof parsed.expiresAt !== "number" || typeof parsed.text !== "string") return null;
       return parsed;
