@@ -1,253 +1,461 @@
-(() => {
-  const SHARE_TTL_MS = 5 * 60 * 1000;
-  const SHARE_PARAM = "id";
-  const DEFAULT_REPLY_TEXT = "Replying to this message...";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  getDocs,
+  deleteDoc,
+  limit,
+  startAt,
+  endAt,
+  documentId
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-  const nameInput = document.getElementById("nameInput");
-  const textInput = document.getElementById("textInput");
-  const getLinkBtn = document.getElementById("getLinkBtn");
-  const copyBtn = document.getElementById("copyBtn");
-  const whatsAppBtn = document.getElementById("whatsAppBtn");
-  const replyBtn = document.getElementById("replyBtn");
-  const errorEl = document.getElementById("error");
-  const linkArea = document.getElementById("linkArea");
-  const shareLinkEl = document.getElementById("shareLink");
+const firebaseConfig = {
+  apiKey: "AIzaSyBQeLLw4jpHJJ7G7w6LMFpdhooMHh6DJwE",
+  authDomain: "webchatfriends-4ebaa.firebaseapp.com",
+  projectId: "webchatfriends-4ebaa",
+  storageBucket: "webchatfriends-4ebaa.firebasestorage.app",
+  messagingSenderId: "773081013408",
+  appId: "1:773081013408:web:436f38418f10e1a8babdc5"
+};
 
-  const composeView = document.getElementById("composeView");
-  const sharedView = document.getElementById("sharedView");
-  const sharedTextEl = document.getElementById("sharedText");
-  const senderMetaEl = document.getElementById("senderMeta");
-  const countdownEl = document.getElementById("countdown");
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = false;
-  }
+const view = {
+  home: document.getElementById("homeView"),
+  locked: document.getElementById("lockedView"),
+  inside: document.getElementById("insideRoomView")
+};
 
-  function clearError() {
-    errorEl.textContent = "";
-    errorEl.hidden = true;
-  }
+const el = {
+  error: document.getElementById("error"),
+  status: document.getElementById("status"),
+  modal: document.getElementById("createModal"),
+  openCreateBtn: document.getElementById("openCreateBtn"),
+  openSearchBtn: document.getElementById("openSearchBtn"),
+  closeModalBtn: document.getElementById("closeModalBtn"),
+  createRoomBtn: document.getElementById("createRoomBtn"),
+  searchArea: document.getElementById("searchArea"),
+  searchInput: document.getElementById("searchInput"),
+  searchResults: document.getElementById("searchResults"),
+  newRoomNameInput: document.getElementById("newRoomNameInput"),
+  newRoomCodeInput: document.getElementById("newRoomCodeInput"),
+  roomCodeInput: document.getElementById("roomCodeInput"),
+  joinRoomBtn: document.getElementById("joinRoomBtn"),
+  backHomeBtn: document.getElementById("backHomeBtn"),
+  roomBadge: document.getElementById("roomBadge"),
+  messagesList: document.getElementById("messagesList"),
+  replyInput: document.getElementById("replyInput"),
+  sendReplyBtn: document.getElementById("sendReplyBtn"),
+  sendMsgBtn: document.getElementById("sendMsgBtn"),
+  shareRoomLink: document.getElementById("shareRoomLink"),
+  copyLinkBtn: document.getElementById("copyLinkBtn"),
+  explicitShareBtn: document.getElementById("explicitShareBtn"),
+  waShareBtn: document.getElementById("waShareBtn"),
+  deleteRoomBtn: document.getElementById("deleteRoomBtn")
+};
 
-  function base64UrlEncode(bytes) {
-    // Convert bytes -> base64 string, then make it URL-safe.
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode(...chunk);
-    }
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  }
+const CREATOR_KEY = "creatorID";
+let currentRoomName = "";
+let currentRoomData = null;
+let unsubscribeMessages = null;
+let authReadyPromiseResolve;
+const authReady = new Promise((resolve) => {
+  authReadyPromiseResolve = resolve;
+});
 
-  function base64UrlDecodeToBytes(base64Url) {
-    const padded = base64Url
-      .replace(/-/g, "+")
-      .replace(/_/g, "/")
-      .padEnd(Math.ceil(base64Url.length / 4) * 4, "=");
-    const binary = atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  }
+function showStatus(message) {
+  el.status.textContent = message || "";
+}
 
-  function utf8ToBytes(str) {
-    // Prefer TextEncoder, fallback for older browsers.
-    if (typeof TextEncoder !== "undefined") {
-      return new TextEncoder().encode(str);
-    }
+function showError(message) {
+  el.error.textContent = message || "Something went wrong.";
+  el.error.hidden = false;
+  showStatus("");
+}
 
-    const utf8 = unescape(encodeURIComponent(str));
-    const bytes = new Uint8Array(utf8.length);
-    for (let i = 0; i < utf8.length; i++) bytes[i] = utf8.charCodeAt(i);
-    return bytes;
-  }
+function clearError() {
+  el.error.textContent = "";
+  el.error.hidden = true;
+}
 
-  function bytesToUtf8(bytes) {
-    // Prefer TextDecoder, fallback for older browsers.
-    if (typeof TextDecoder !== "undefined") {
-      return new TextDecoder().decode(bytes);
-    }
+function getFriendlyError(error, fallback) {
+  if (!error) return fallback || "Something went wrong.";
+  if (typeof error === "string") return error;
+  if (error.code === "permission-denied") return "Permission denied for this action.";
+  if (error.code === "unavailable") return "Network unavailable. Check internet and retry.";
+  if (error.code === "unauthenticated") return "Authentication is not ready. Please retry.";
+  if (error.code === "not-found") return "Requested room or message was not found.";
+  return error.message || fallback || "Unexpected error occurred.";
+}
 
-    let ascii = "";
-    for (let i = 0; i < bytes.length; i++) ascii += String.fromCharCode(bytes[i]);
-    return decodeURIComponent(escape(ascii));
-  }
+function setInputError(inputEl, hasError) {
+  if (!inputEl) return;
+  inputEl.classList.toggle("input-error", !!hasError);
+}
 
-  function encodeSharePayload(text, expiresAt) {
-    // Self-contained payload so other devices can decode it without a backend.
-    const payload = JSON.stringify({ text, expiresAt, sender: getSenderName() });
-    const bytes = utf8ToBytes(payload);
-    return base64UrlEncode(bytes);
-  }
+function clearInputErrors() {
+  setInputError(el.newRoomNameInput, false);
+  setInputError(el.newRoomCodeInput, false);
+  setInputError(el.roomCodeInput, false);
+  setInputError(el.replyInput, false);
+  setInputError(el.searchInput, false);
+}
 
-  function decodeSharePayload(encoded) {
-    try {
-      const bytes = base64UrlDecodeToBytes(encoded);
-      const payloadStr = bytesToUtf8(bytes);
-      const parsed = JSON.parse(payloadStr);
-      if (!parsed || typeof parsed.expiresAt !== "number" || typeof parsed.text !== "string") return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  }
+function sanitizeRoomName(raw) {
+  return (raw || "").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "");
+}
 
-  function randomNickname() {
-    const adjectives = ["Blue", "Swift", "Bright", "Calm", "Brave", "Sunny", "Lucky", "Quiet"];
-    const animals = ["Fox", "Tiger", "Owl", "Panda", "Wolf", "Falcon", "Dolphin", "Koala"];
-    const a = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const b = animals[Math.floor(Math.random() * animals.length)];
-    const n = Math.floor(100 + Math.random() * 900);
-    return `${a}${b}${n}`;
-  }
+function getCreatorID() {
+  if (auth.currentUser && auth.currentUser.uid) return auth.currentUser.uid;
+  const existing = localStorage.getItem(CREATOR_KEY);
+  if (existing) return existing;
+  const generated = `u_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+  localStorage.setItem(CREATOR_KEY, generated);
+  return generated;
+}
 
-  function getSenderName() {
-    const explicit = (nameInput.value || "").trim();
-    if (explicit) return explicit;
-    return randomNickname();
-  }
-
-  function showComposeView() {
-    sharedView.hidden = true;
-    composeView.hidden = false;
-    linkArea.hidden = true;
-    copyBtn.hidden = true;
-    whatsAppBtn.hidden = true;
-    countdownEl.textContent = "";
-  }
-
-  function buildWhatsAppUrl(shareUrl) {
-    return `https://wa.me/?text=${encodeURIComponent(`Check this message: ${shareUrl}`)}`;
-  }
-
-  async function copyTextToClipboard(value) {
-    if (!value) return false;
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        await navigator.clipboard.writeText(value);
-        return true;
+function initAnonymousAuth() {
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        showError(`Auth failed: ${error.message || "Could not sign in anonymously."}`);
       }
-    } catch {}
-
-    try {
-      const temp = document.createElement("textarea");
-      temp.value = value;
-      temp.setAttribute("readonly", "");
-      temp.style.position = "absolute";
-      temp.style.left = "-9999px";
-      document.body.appendChild(temp);
-      temp.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(temp);
-      return !!ok;
-    } catch {
-      return false;
-    }
-  }
-
-  function formatRemaining(ms) {
-    const sec = Math.max(0, Math.ceil(ms / 1000));
-    const mm = Math.floor(sec / 60);
-    const ss = sec % 60;
-    return `${mm}:${String(ss).padStart(2, "0")}`;
-  }
-
-  function setCountdown(expiresAt) {
-    let intervalId = null;
-    const tick = () => {
-      const remaining = expiresAt - Date.now();
-      if (remaining <= 0) {
-        countdownEl.textContent = "";
-        sharedView.hidden = true;
-        composeView.hidden = false;
-        showError("This share link has expired.");
-        if (intervalId != null) window.clearInterval(intervalId);
-        return;
-      }
-      countdownEl.textContent = `Expires in ${formatRemaining(remaining)}`;
-    };
-
-    tick();
-    intervalId = window.setInterval(tick, 1000);
-  }
-
-  function buildShareUrl(encodedPayload) {
-    const url = new URL(window.location.href);
-    url.searchParams.set(SHARE_PARAM, encodedPayload);
-    return url.toString();
-  }
-
-  // Button handler: store text for 5 minutes and output a unique link.
-  getLinkBtn.addEventListener("click", () => {
-    clearError();
-    const text = (textInput.value || "").trim();
-
-    if (!text) {
-      showError("Please enter some text to share.");
       return;
     }
+    console.log("Logged in as:", user.uid);
+    authReadyPromiseResolve();
+  });
+}
 
-    const expiresAt = Date.now() + SHARE_TTL_MS;
-    const encodedPayload = encodeSharePayload(text, expiresAt);
-    const shareUrl = buildShareUrl(encodedPayload);
-    shareLinkEl.href = shareUrl;
-    shareLinkEl.textContent = shareUrl;
-    linkArea.hidden = false;
-    copyBtn.hidden = false;
-    whatsAppBtn.hidden = false;
-    whatsAppBtn.href = buildWhatsAppUrl(shareUrl);
+function setState(stateName) {
+  view.home.hidden = stateName !== "home";
+  view.locked.hidden = stateName !== "locked";
+  view.inside.hidden = stateName !== "inside";
+}
+
+function roomLink(roomName) {
+  return `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomName)}`;
+}
+
+function buildWhatsAppUrl(link) {
+  return `https://wa.me/?text=${encodeURIComponent(`Join my room: ${link}`)}`;
+}
+
+async function copyToClipboard(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function explicitShareLink(link) {
+  if (!link) throw new Error("Share link is missing.");
+  if (navigator.share) {
+    await navigator.share({ title: "Pink Rooms", text: "Join my room", url: link });
+    return;
+  }
+  const ok = await copyToClipboard(link);
+  if (!ok) throw new Error("Could not share link.");
+  showStatus("Share not supported on this device. Link copied instead.");
+}
+
+function teardownMessagesListener() {
+  if (unsubscribeMessages) {
+    unsubscribeMessages();
+    unsubscribeMessages = null;
+  }
+}
+
+function renderMessages(docs) {
+  if (!docs.length) {
+    el.messagesList.innerHTML = '<p class="message">No messages yet.</p>';
+    return;
+  }
+  const html = docs
+    .map((snap) => {
+      const data = snap.data();
+      const sender = data.senderName || "Guest";
+      const text = data.text || "";
+      return `<div class="message"><p class="message-meta">${sender}</p>${escapeHtml(text)}</div>`;
+    })
+    .join("");
+  el.messagesList.innerHTML = html;
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function tryCreateRoom() {
+  await authReady;
+  clearError();
+  clearInputErrors();
+  showStatus("Creating room...");
+
+  const roomName = sanitizeRoomName(el.newRoomNameInput.value);
+  const roomCode = (el.newRoomCodeInput.value || "").trim();
+  if (!roomName) {
+    setInputError(el.newRoomNameInput, true);
+    throw new Error("Room name is required.");
+  }
+  if (!/^\d{4}$/.test(roomCode)) {
+    setInputError(el.newRoomCodeInput, true);
+    throw new Error("Room code must be exactly 4 digits.");
+  }
+
+  const roomRef = doc(db, "rooms", roomName);
+  const existing = await getDoc(roomRef);
+  if (existing.exists()) {
+    setInputError(el.newRoomNameInput, true);
+    throw new Error("Room name already exists. Try another.");
+  }
+
+  const creatorID = getCreatorID();
+  await setDoc(roomRef, {
+    roomCode,
+    creatorID,
+    createdAt: serverTimestamp()
   });
 
-  copyBtn.addEventListener("click", async () => {
+  currentRoomName = roomName;
+  currentRoomData = { roomCode, creatorID };
+  const link = roomLink(roomName);
+  window.history.replaceState({}, "", `?room=${encodeURIComponent(roomName)}`);
+  setupInsideRoom(link);
+  closeModal();
+  showStatus("Room created.");
+}
+
+function openModal() {
+  clearError();
+  showStatus("");
+  el.modal.hidden = false;
+}
+
+function closeModal() {
+  el.modal.hidden = true;
+}
+
+async function searchRooms() {
+  await authReady;
+  clearError();
+  setInputError(el.searchInput, false);
+  const term = sanitizeRoomName(el.searchInput.value);
+  if (!term) {
+    el.searchResults.innerHTML = "";
+    return;
+  }
+
+  const roomsRef = collection(db, "rooms");
+  const q = query(roomsRef, orderBy(documentId()), startAt(term), endAt(`${term}\uf8ff`), limit(10));
+  const result = await getDocs(q);
+
+  if (result.empty) {
+    el.searchResults.innerHTML = '<p class="hint">No matching rooms.</p>';
+    return;
+  }
+
+  el.searchResults.innerHTML = result.docs
+    .map((d) => {
+      const n = d.id;
+      return `<div class="result-item"><span>${n}</span><a class="button ghost" href="?room=${encodeURIComponent(
+        n
+      )}">Open</a></div>`;
+    })
+    .join("");
+}
+
+async function attemptUnlockRoom() {
+  await authReady;
+  clearError();
+  clearInputErrors();
+  showStatus("Verifying code...");
+  const code = (el.roomCodeInput.value || "").trim();
+  if (!/^\d{4}$/.test(code)) {
+    setInputError(el.roomCodeInput, true);
+    throw new Error("Enter your 4-digit room code.");
+  }
+
+  const roomRef = doc(db, "rooms", currentRoomName);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) {
+    throw new Error("Room does not exist.");
+  }
+
+  const data = snap.data();
+  if (data.roomCode !== code) {
+    setInputError(el.roomCodeInput, true);
+    throw new Error("Wrong room code.");
+  }
+
+  currentRoomData = data;
+  const link = roomLink(currentRoomName);
+  setupInsideRoom(link);
+  showStatus("Room unlocked.");
+}
+
+function setupInsideRoom(link) {
+  setState("inside");
+  el.roomBadge.textContent = `Room: ${currentRoomName}`;
+  el.shareRoomLink.href = link;
+  el.shareRoomLink.textContent = link;
+  el.waShareBtn.href = buildWhatsAppUrl(link);
+  const isCreator = currentRoomData && currentRoomData.creatorID === getCreatorID();
+  el.deleteRoomBtn.hidden = !isCreator;
+
+  teardownMessagesListener();
+  const messagesRef = collection(db, "rooms", currentRoomName, "messages");
+  const q = query(messagesRef, orderBy("createdAt", "asc"));
+  unsubscribeMessages = onSnapshot(q, (snapshot) => {
+    renderMessages(snapshot.docs);
+  });
+}
+
+async function sendReply() {
+  await authReady;
+  clearError();
+  clearInputErrors();
+  const text = (el.replyInput.value || "").trim();
+  if (!text) {
+    setInputError(el.replyInput, true);
+    throw new Error("Reply message cannot be empty.");
+  }
+
+  const senderName = `User-${getCreatorID().slice(-4)}`;
+  await addDoc(collection(db, "rooms", currentRoomName, "messages"), {
+    text,
+    senderName,
+    senderUID: getCreatorID(),
+    createdAt: serverTimestamp()
+  });
+  el.replyInput.value = "";
+}
+
+async function deleteCurrentRoom() {
+  await authReady;
+  clearError();
+  const okay = window.confirm(`Delete room "${currentRoomName}" and all messages?`);
+  if (!okay) return;
+
+  const roomRef = doc(db, "rooms", currentRoomName);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) throw new Error("Room already deleted.");
+
+  const roomData = roomSnap.data();
+  if (roomData.creatorID !== getCreatorID()) throw new Error("Only the room creator can delete this room.");
+
+  const messagesRef = collection(db, "rooms", currentRoomName, "messages");
+  const msgs = await getDocs(messagesRef);
+  for (const msg of msgs.docs) {
+    await deleteDoc(msg.ref);
+  }
+  await deleteDoc(roomRef);
+
+  teardownMessagesListener();
+  currentRoomName = "";
+  currentRoomData = null;
+  window.history.replaceState({}, "", window.location.pathname);
+  setState("home");
+  showStatus("Room deleted.");
+}
+
+async function runAction(action, fallbackMessage) {
+  clearError();
+  try {
+    await action();
+  } catch (error) {
+    showError(getFriendlyError(error, fallbackMessage));
+  }
+}
+
+function bindEvents() {
+  el.openCreateBtn.addEventListener("click", openModal);
+  el.closeModalBtn.addEventListener("click", closeModal);
+  el.createRoomBtn.addEventListener("click", () => runAction(tryCreateRoom, "Failed to create room."));
+  el.openSearchBtn.addEventListener("click", () => {
+    el.searchArea.hidden = !el.searchArea.hidden;
+  });
+  el.searchInput.addEventListener("input", () => {
+    setInputError(el.searchInput, false);
+    runAction(searchRooms, "Failed to search rooms.");
+  });
+  el.joinRoomBtn.addEventListener("click", () => runAction(attemptUnlockRoom, "Could not unlock room."));
+  el.backHomeBtn.addEventListener("click", () => {
+    window.history.replaceState({}, "", window.location.pathname);
+    currentRoomName = "";
+    currentRoomData = null;
+    teardownMessagesListener();
+    setState("home");
+    showStatus("");
     clearError();
-    const value = shareLinkEl.textContent || shareLinkEl.href || "";
-    const ok = await copyTextToClipboard(value);
-    if (!ok) {
-      showError("Could not copy the link. Please copy it manually.");
-      return;
+    clearInputErrors();
+  });
+  el.sendReplyBtn.addEventListener("click", () => runAction(sendReply, "Failed to send message."));
+  el.sendMsgBtn.addEventListener("click", () => runAction(sendReply, "Failed to send message."));
+  el.replyInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runAction(sendReply, "Failed to send message.");
     }
-    copyBtn.textContent = "Copied!";
-    window.setTimeout(() => {
-      copyBtn.textContent = "Copy link";
-    }, 1200);
+  });
+  el.copyLinkBtn.addEventListener("click", () =>
+    runAction(async () => {
+      const ok = await copyToClipboard(el.shareRoomLink.textContent || "");
+      if (!ok) throw new Error("Could not copy link.");
+      showStatus("Link copied.");
+    }, "Could not copy link.")
+  );
+  el.explicitShareBtn.addEventListener("click", () =>
+    runAction(async () => {
+      await explicitShareLink(el.shareRoomLink.textContent || "");
+      showStatus("Share opened.");
+    }, "Could not share link.")
+  );
+  el.deleteRoomBtn.addEventListener("click", () => {
+    runAction(deleteCurrentRoom, "Failed to delete room.");
   });
 
-  replyBtn.addEventListener("click", () => {
-    clearError();
-    showComposeView();
-    textInput.value = DEFAULT_REPLY_TEXT;
-    textInput.focus();
+  [el.newRoomNameInput, el.newRoomCodeInput, el.roomCodeInput, el.replyInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      setInputError(input, false);
+      clearError();
+    });
   });
+}
 
-  // If opened via a share link, display the stored text.
-  (function initFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const encodedPayload = params.get(SHARE_PARAM);
-    if (!encodedPayload) return;
+function initFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const room = sanitizeRoomName(params.get("room") || "");
+  if (!room) {
+    setState("home");
+    return;
+  }
+  currentRoomName = room;
+  setState("locked");
+}
 
-    const record = decodeSharePayload(encodedPayload);
-    if (!record) {
-      showError("This share link is invalid or has expired.");
-      return;
-    }
-
-    if (Date.now() > record.expiresAt) {
-      showError("This share link is invalid or has expired.");
-      return;
-    }
-
-    composeView.hidden = true;
-    sharedView.hidden = false;
-    sharedTextEl.textContent = record.text;
-    if (record.sender && typeof record.sender === "string") {
-      senderMetaEl.textContent = `Sent by: ${record.sender}`;
-      senderMetaEl.hidden = false;
-    } else {
-      senderMetaEl.textContent = "";
-      senderMetaEl.hidden = true;
-    }
-    setCountdown(record.expiresAt);
-  })();
-})();
+bindEvents();
+initAnonymousAuth();
+initFromUrl();
 

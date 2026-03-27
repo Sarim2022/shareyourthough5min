@@ -3,78 +3,97 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>5-Minute Text Share</title>
+    <title>Pink Rooms Chat</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page">
-      <section class="card" aria-label="Text broadcast card">
+      <section class="card" aria-label="Room app card">
         <div class="card-inner">
-          <h1 class="title">Broadcast your text for 5 min</h1>
+          <h1 class="title">Pink Rooms</h1>
 
-          <div id="sharedView" class="shared-view" hidden>
-            <p class="success">Well done!</p>
+          <section id="homeView">
+            <p class="subtitle">Create or join a private room</p>
+            <div class="actions">
+              <button id="openCreateBtn" class="button" type="button">Create Room</button>
+              <button id="openSearchBtn" class="button ghost" type="button">Search Room</button>
+            </div>
+            <div id="searchArea" class="search-area" hidden>
+              <label class="label" for="searchInput">Find room by name</label>
+              <input
+                id="searchInput"
+                class="input"
+                type="text"
+                autocomplete="off"
+                placeholder="Type room name..."
+              />
+              <div id="searchResults" class="results"></div>
+            </div>
+          </section>
+
+          <section id="lockedView" hidden>
+            <p class="subtitle">Locked Room</p>
+            <p class="hint">Enter the 4-digit room code to join.</p>
+            <input
+              id="roomCodeInput"
+              class="input"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              maxlength="4"
+              placeholder="Room code"
+            />
+            <div class="actions">
+              <button id="joinRoomBtn" class="button" type="button">Unlock Room</button>
+              <button id="backHomeBtn" class="button ghost" type="button">Back</button>
+            </div>
+          </section>
+
+          <section id="insideRoomView" hidden>
             <div class="shared-meta">
-              <span class="pill">Expires soon</span>
-              <span id="countdown" class="countdown" aria-live="polite"></span>
+              <span class="pill" id="roomBadge">Room</span>
+              <button id="deleteRoomBtn" class="button danger" type="button" hidden>Delete Room</button>
             </div>
-            <p id="senderMeta" class="sender-meta"></p>
-            <p class="shared-text" id="sharedText"></p>
+            <div class="messages" id="messagesList"></div>
+            <label class="label" for="replyInput">Reply</label>
+            <input id="replyInput" class="input" type="text" maxlength="1000" placeholder="Type your message..." />
             <div class="actions">
-              <button id="replyBtn" class="button" type="button">Reply it?</button>
+              <button id="sendReplyBtn" class="button" type="button">Reply</button>
+              <button id="sendMsgBtn" class="button ghost" type="button">Send</button>
             </div>
-          </div>
-
-          <div id="composeView" class="compose-view">
-            <label class="label" for="nameInput">Sender name (optional)</label>
-            <input
-              id="nameInput"
-              class="input"
-              type="text"
-              inputmode="text"
-              autocomplete="off"
-              maxlength="40"
-              placeholder="Your name (or auto nickname)"
-            />
-
-            <label class="label" for="textInput">Text</label>
-            <input
-              id="textInput"
-              class="input"
-              type="text"
-              inputmode="text"
-              autocomplete="off"
-              maxlength="2000"
-              placeholder="Type something to share…"
-            />
-
-            <div class="actions">
-              <button id="getLinkBtn" class="button" type="button">
-                Get share link
-              </button>
-              <button id="copyBtn" class="button ghost" type="button" hidden>
-                Copy link
-              </button>
-              <a id="whatsAppBtn" class="button ghost" href="#" target="_blank" rel="noopener" hidden>
-                Share via WhatsApp
-              </a>
-            </div>
-
-            <p id="error" class="error" role="alert" hidden></p>
-
-            <div id="linkArea" class="link-area" hidden>
+            <div class="link-area">
               <div class="link-row">
-                <span class="link-label">Share link</span>
-                <a id="shareLink" class="link" href="#" target="_self" rel="noopener"></a>
+                <span class="link-label">Share room link</span>
+                <a id="shareRoomLink" class="link" href="#" target="_self" rel="noopener"></a>
               </div>
-              <p class="hint">This link expires in 5 minutes.</p>
+              <div class="actions">
+                <button id="copyLinkBtn" class="button ghost" type="button">Copy Link</button>
+                <button id="explicitShareBtn" class="button ghost" type="button">Share Link</button>
+                <a id="waShareBtn" class="button ghost" href="#" target="_blank" rel="noopener">Share via WhatsApp</a>
+              </div>
             </div>
-          </div>
+          </section>
+
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+          <p id="error" class="error" role="alert" hidden></p>
         </div>
       </section>
     </main>
 
-    <script src="./script.js"></script>
+    <div id="createModal" class="modal" hidden>
+      <div class="modal-content">
+        <h2 class="modal-title">Create Room</h2>
+        <label class="label" for="newRoomNameInput">Room Name (Unique)</label>
+        <input id="newRoomNameInput" class="input" type="text" maxlength="40" autocomplete="off" />
+        <label class="label" for="newRoomCodeInput">4-digit Room Code</label>
+        <input id="newRoomCodeInput" class="input" type="text" maxlength="4" inputmode="numeric" autocomplete="off" />
+        <div class="actions">
+          <button id="createRoomBtn" class="button" type="button">Create</button>
+          <button id="closeModalBtn" class="button ghost" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./script.js"></script>
   </body>
 </html>
-
