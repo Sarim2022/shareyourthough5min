@@ -1,10 +1,6 @@
 (() => {
   const SHARE_TTL_MS = 5 * 60 * 1000;
-  const STORAGE_PREFIX = "share:";
-
-  // In-memory store (requested). We also mirror to localStorage so the link works
-  // even if the tab is refreshed or opened in a new tab.
-  const memoryStore = new Map();
+  const SHARE_PARAM = "id";
 
   const textInput = document.getElementById("textInput");
   const getLinkBtn = document.getElementById("getLinkBtn");
@@ -27,95 +23,45 @@
     errorEl.hidden = true;
   }
 
-  function createShareId() {
-    // Prefer UUIDs when available.
-    if (typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID().replace(/-/g, "");
+  function base64UrlEncode(bytes) {
+    // Convert bytes -> base64 string, then make it URL-safe.
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
     }
-
-    if (typeof crypto !== "undefined" && crypto && typeof crypto.getRandomValues === "function") {
-      const bytes = new Uint8Array(16);
-      crypto.getRandomValues(bytes);
-      return Array.from(bytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-    }
-
-    // Very old fallback.
-    return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   }
 
-  function storageKey(id) {
-    return `${STORAGE_PREFIX}${id}`;
+  function base64UrlDecodeToBytes(base64Url) {
+    const padded = base64Url
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(base64Url.length / 4) * 4, "=");
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
   }
 
-  function safeJsonParse(str) {
-    if (!str) return null;
+  function encodeSharePayload(text, expiresAt) {
+    // Self-contained payload so other devices can decode it without a backend.
+    const payload = JSON.stringify({ text, expiresAt });
+    const bytes = new TextEncoder().encode(payload);
+    return base64UrlEncode(bytes);
+  }
+
+  function decodeSharePayload(encoded) {
     try {
-      return JSON.parse(str);
+      const bytes = base64UrlDecodeToBytes(encoded);
+      const payloadStr = new TextDecoder().decode(bytes);
+      const parsed = JSON.parse(payloadStr);
+      if (!parsed || typeof parsed.expiresAt !== "number" || typeof parsed.text !== "string") return null;
+      return parsed;
     } catch {
       return null;
     }
-  }
-
-  function deleteShare(id) {
-    memoryStore.delete(id);
-    try {
-      localStorage.removeItem(storageKey(id));
-    } catch {
-      // Ignore storage failures.
-    }
-  }
-
-  function saveShare(id, text) {
-    const expiresAt = Date.now() + SHARE_TTL_MS;
-    const record = { text, expiresAt };
-
-    memoryStore.set(id, record);
-
-    // Mirror to localStorage for practical "share link" behavior.
-    try {
-      localStorage.setItem(storageKey(id), JSON.stringify(record));
-    } catch {
-      // Ignore storage failures.
-    }
-
-    // Cleanup after 5 minutes.
-    window.setTimeout(() => deleteShare(id), SHARE_TTL_MS + 150);
-  }
-
-  function loadShare(id) {
-    const now = Date.now();
-
-    const memRecord = memoryStore.get(id);
-    if (memRecord) {
-      if (now > memRecord.expiresAt) {
-        deleteShare(id);
-        return null;
-      }
-      return memRecord;
-    }
-
-    // If not in memory (page refresh / new tab), try localStorage.
-    let record = null;
-    try {
-      record = safeJsonParse(localStorage.getItem(storageKey(id)));
-    } catch {
-      record = null;
-    }
-
-    if (!record || typeof record.expiresAt !== "number" || typeof record.text !== "string") {
-      return null;
-    }
-
-    if (now > record.expiresAt) {
-      deleteShare(id);
-      return null;
-    }
-
-    // Restore into memory for fast subsequent reads.
-    memoryStore.set(id, record);
-    return record;
   }
 
   function formatRemaining(ms) {
@@ -126,6 +72,7 @@
   }
 
   function setCountdown(expiresAt) {
+    let intervalId = null;
     const tick = () => {
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
@@ -133,47 +80,19 @@
         sharedView.hidden = true;
         composeView.hidden = false;
         showError("This share link has expired.");
+        if (intervalId != null) window.clearInterval(intervalId);
         return;
       }
       countdownEl.textContent = `Expires in ${formatRemaining(remaining)}`;
     };
 
     tick();
-    window.setInterval(tick, 1000);
+    intervalId = window.setInterval(tick, 1000);
   }
 
-  function cleanupExpiredFromStorage() {
-    const now = Date.now();
-    let length = 0;
-    try {
-      length = localStorage.length;
-    } catch {
-      return;
-    }
-
-    // Iterate backwards in case we remove items while looping.
-    for (let i = length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (!k || !k.startsWith(STORAGE_PREFIX)) continue;
-
-      const id = k.slice(STORAGE_PREFIX.length);
-      const record = safeJsonParse(localStorage.getItem(k));
-      if (!record || typeof record.expiresAt !== "number") {
-        try {
-          localStorage.removeItem(k);
-        } catch {}
-        continue;
-      }
-
-      if (now > record.expiresAt) {
-        deleteShare(id);
-      }
-    }
-  }
-
-  function buildShareUrl(id) {
+  function buildShareUrl(encodedPayload) {
     const url = new URL(window.location.href);
-    url.searchParams.set("id", id);
+    url.searchParams.set(SHARE_PARAM, encodedPayload);
     return url.toString();
   }
 
@@ -187,10 +106,9 @@
       return;
     }
 
-    const id = createShareId();
-    saveShare(id, text);
-
-    const shareUrl = buildShareUrl(id);
+    const expiresAt = Date.now() + SHARE_TTL_MS;
+    const encodedPayload = encodeSharePayload(text, expiresAt);
+    const shareUrl = buildShareUrl(encodedPayload);
     shareLinkEl.href = shareUrl;
     shareLinkEl.textContent = shareUrl;
     linkArea.hidden = false;
@@ -198,14 +116,17 @@
 
   // If opened via a share link, display the stored text.
   (function initFromUrl() {
-    cleanupExpiredFromStorage();
-
     const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
-    if (!id) return;
+    const encodedPayload = params.get(SHARE_PARAM);
+    if (!encodedPayload) return;
 
-    const record = loadShare(id);
+    const record = decodeSharePayload(encodedPayload);
     if (!record) {
+      showError("This share link is invalid or has expired.");
+      return;
+    }
+
+    if (Date.now() > record.expiresAt) {
       showError("This share link is invalid or has expired.");
       return;
     }
