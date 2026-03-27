@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>5-Minute Text Share</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="card" aria-label="Text broadcast card">
+        <div class="card-inner">
+          <h1 class="title">Broadcast your text for 5 min</h1>
+
+          <div id="sharedView" class="shared-view" hidden>
+            <div class="shared-meta">
+              <span class="pill">Expires soon</span>
+              <span id="countdown" class="countdown" aria-live="polite"></span>
+            </div>
+            <p class="shared-text" id="sharedText"></p>
+          </div>
+
+          <div id="composeView" class="compose-view">
+            <label class="label" for="textInput">Text</label>
+            <input
+              id="textInput"
+              class="input"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              maxlength="2000"
+              placeholder="Type something to share…"
+            />
+
+            <div class="actions">
+              <button id="getLinkBtn" class="button" type="button">
+                Get share link
+              </button>
+            </div>
+
+            <p id="error" class="error" role="alert" hidden></p>
+
+            <div id="linkArea" class="link-area" hidden>
+              <div class="link-row">
+                <span class="link-label">Share link</span>
+                <a id="shareLink" class="link" href="#" target="_self" rel="noopener"></a>
+              </div>
+              <p class="hint">This link expires in 5 minutes.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
+
