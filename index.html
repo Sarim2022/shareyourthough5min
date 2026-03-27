@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pink Rooms Chat</title>
+    <title>shareyourmind</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page">
       <section class="card" aria-label="Room app card">
         <div class="card-inner">
-          <h1 class="title">Pink Rooms</h1>
+          <h1 class="title">shareyourmind</h1>
 
           <section id="homeView">
             <p class="subtitle">Create or join a private room</p>
@@ -34,6 +34,15 @@
           <section id="lockedView" hidden>
             <p class="subtitle">Locked Room</p>
             <p class="hint">Enter the 4-digit room code to join.</p>
+            <label class="label" for="joinNameInput">Your name</label>
+            <input
+              id="joinNameInput"
+              class="input"
+              type="text"
+              autocomplete="off"
+              maxlength="30"
+              placeholder="Enter your name"
+            />
             <input
               id="roomCodeInput"
               class="input"
@@ -52,6 +61,7 @@
           <section id="insideRoomView" hidden>
             <div class="shared-meta">
               <span class="pill" id="roomBadge">Room</span>
+              <span class="pill" id="peopleCountBadge">People: 1</span>
               <button id="deleteRoomBtn" class="button danger" type="button" hidden>Delete Room</button>
             </div>
             <div class="messages" id="messagesList"></div>
@@ -64,7 +74,7 @@
             <div class="link-area">
               <div class="link-row">
                 <span class="link-label">Share room link</span>
-                <a id="shareRoomLink" class="link" href="#" target="_self" rel="noopener"></a>
+                <a id="shareRoomLink" class="link" href="#" target="_self" rel="noopener">Open room link</a>
               </div>
               <div class="actions">
                 <button id="copyLinkBtn" class="button ghost" type="button">Copy Link</button>
@@ -83,6 +93,8 @@
     <div id="createModal" class="modal" hidden>
       <div class="modal-content">
         <h2 class="modal-title">Create Room</h2>
+        <label class="label" for="newCreatorNameInput">Your name</label>
+        <input id="newCreatorNameInput" class="input" type="text" maxlength="30" autocomplete="off" />
         <label class="label" for="newRoomNameInput">Room Name (Unique)</label>
         <input id="newRoomNameInput" class="input" type="text" maxlength="40" autocomplete="off" />
         <label class="label" for="newRoomCodeInput">4-digit Room Code</label>

@@ -49,12 +49,15 @@ const el = {
   searchArea: document.getElementById("searchArea"),
   searchInput: document.getElementById("searchInput"),
   searchResults: document.getElementById("searchResults"),
+  newCreatorNameInput: document.getElementById("newCreatorNameInput"),
   newRoomNameInput: document.getElementById("newRoomNameInput"),
   newRoomCodeInput: document.getElementById("newRoomCodeInput"),
+  joinNameInput: document.getElementById("joinNameInput"),
   roomCodeInput: document.getElementById("roomCodeInput"),
   joinRoomBtn: document.getElementById("joinRoomBtn"),
   backHomeBtn: document.getElementById("backHomeBtn"),
   roomBadge: document.getElementById("roomBadge"),
+  peopleCountBadge: document.getElementById("peopleCountBadge"),
   messagesList: document.getElementById("messagesList"),
   replyInput: document.getElementById("replyInput"),
   sendReplyBtn: document.getElementById("sendReplyBtn"),
@@ -69,6 +72,7 @@ const el = {
 const CREATOR_KEY = "creatorID";
 let currentRoomName = "";
 let currentRoomData = null;
+let currentDisplayName = "";
 let unsubscribeMessages = null;
 let authReadyPromiseResolve;
 const authReady = new Promise((resolve) => {
@@ -106,8 +110,10 @@ function setInputError(inputEl, hasError) {
 }
 
 function clearInputErrors() {
+  setInputError(el.newCreatorNameInput, false);
   setInputError(el.newRoomNameInput, false);
   setInputError(el.newRoomCodeInput, false);
+  setInputError(el.joinNameInput, false);
   setInputError(el.roomCodeInput, false);
   setInputError(el.replyInput, false);
   setInputError(el.searchInput, false);
@@ -167,7 +173,7 @@ async function copyToClipboard(value) {
 async function explicitShareLink(link) {
   if (!link) throw new Error("Share link is missing.");
   if (navigator.share) {
-    await navigator.share({ title: "Pink Rooms", text: "Join my room", url: link });
+    await navigator.share({ title: "shareyourmind", text: "Join my room", url: link });
     return;
   }
   const ok = await copyToClipboard(link);
@@ -180,6 +186,19 @@ function teardownMessagesListener() {
     unsubscribeMessages();
     unsubscribeMessages = null;
   }
+}
+
+function updatePeopleCount(messagesDocs) {
+  const people = new Set();
+  if (currentRoomData && currentRoomData.creatorID) {
+    people.add(currentRoomData.creatorID);
+  }
+  for (const snap of messagesDocs) {
+    const data = snap.data();
+    if (data.senderUID) people.add(data.senderUID);
+  }
+  const count = Math.max(1, people.size || 1);
+  el.peopleCountBadge.textContent = `People: ${count}`;
 }
 
 function renderMessages(docs) {
@@ -213,8 +232,13 @@ async function tryCreateRoom() {
   clearInputErrors();
   showStatus("Creating room...");
 
+  const creatorName = (el.newCreatorNameInput.value || "").trim();
   const roomName = sanitizeRoomName(el.newRoomNameInput.value);
   const roomCode = (el.newRoomCodeInput.value || "").trim();
+  if (!creatorName) {
+    setInputError(el.newCreatorNameInput, true);
+    throw new Error("Your name is required.");
+  }
   if (!roomName) {
     setInputError(el.newRoomNameInput, true);
     throw new Error("Room name is required.");
@@ -235,11 +259,13 @@ async function tryCreateRoom() {
   await setDoc(roomRef, {
     roomCode,
     creatorID,
+    creatorName,
     createdAt: serverTimestamp()
   });
 
   currentRoomName = roomName;
-  currentRoomData = { roomCode, creatorID };
+  currentRoomData = { roomCode, creatorID, creatorName };
+  currentDisplayName = creatorName;
   const link = roomLink(roomName);
   window.history.replaceState({}, "", `?room=${encodeURIComponent(roomName)}`);
   setupInsideRoom(link);
@@ -291,7 +317,12 @@ async function attemptUnlockRoom() {
   clearError();
   clearInputErrors();
   showStatus("Verifying code...");
+  const joinName = (el.joinNameInput.value || "").trim();
   const code = (el.roomCodeInput.value || "").trim();
+  if (!joinName) {
+    setInputError(el.joinNameInput, true);
+    throw new Error("Please enter your name to join.");
+  }
   if (!/^\d{4}$/.test(code)) {
     setInputError(el.roomCodeInput, true);
     throw new Error("Enter your 4-digit room code.");
@@ -310,6 +341,7 @@ async function attemptUnlockRoom() {
   }
 
   currentRoomData = data;
+  currentDisplayName = joinName;
   const link = roomLink(currentRoomName);
   setupInsideRoom(link);
   showStatus("Room unlocked.");
@@ -319,8 +351,9 @@ function setupInsideRoom(link) {
   setState("inside");
   el.roomBadge.textContent = `Room: ${currentRoomName}`;
   el.shareRoomLink.href = link;
-  el.shareRoomLink.textContent = link;
+  el.shareRoomLink.textContent = "Open room link";
   el.waShareBtn.href = buildWhatsAppUrl(link);
+  el.peopleCountBadge.textContent = "People: 1";
   const isCreator = currentRoomData && currentRoomData.creatorID === getCreatorID();
   el.deleteRoomBtn.hidden = !isCreator;
 
@@ -329,6 +362,7 @@ function setupInsideRoom(link) {
   const q = query(messagesRef, orderBy("createdAt", "asc"));
   unsubscribeMessages = onSnapshot(q, (snapshot) => {
     renderMessages(snapshot.docs);
+    updatePeopleCount(snapshot.docs);
   });
 }
 
@@ -342,7 +376,7 @@ async function sendReply() {
     throw new Error("Reply message cannot be empty.");
   }
 
-  const senderName = `User-${getCreatorID().slice(-4)}`;
+  const senderName = currentDisplayName || `User-${getCreatorID().slice(-4)}`;
   await addDoc(collection(db, "rooms", currentRoomName, "messages"), {
     text,
     senderName,
@@ -365,16 +399,14 @@ async function deleteCurrentRoom() {
   const roomData = roomSnap.data();
   if (roomData.creatorID !== getCreatorID()) throw new Error("Only the room creator can delete this room.");
 
-  const messagesRef = collection(db, "rooms", currentRoomName, "messages");
-  const msgs = await getDocs(messagesRef);
-  for (const msg of msgs.docs) {
-    await deleteDoc(msg.ref);
-  }
+  // Delete parent room document only. Message sub-collection can remain orphaned
+  // if rules block message deletes; this prevents creator delete from failing.
   await deleteDoc(roomRef);
 
   teardownMessagesListener();
   currentRoomName = "";
   currentRoomData = null;
+  currentDisplayName = "";
   window.history.replaceState({}, "", window.location.pathname);
   setState("home");
   showStatus("Room deleted.");
@@ -405,6 +437,7 @@ function bindEvents() {
     window.history.replaceState({}, "", window.location.pathname);
     currentRoomName = "";
     currentRoomData = null;
+    currentDisplayName = "";
     teardownMessagesListener();
     setState("home");
     showStatus("");
@@ -437,6 +470,12 @@ function bindEvents() {
   });
 
   [el.newRoomNameInput, el.newRoomCodeInput, el.roomCodeInput, el.replyInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      setInputError(input, false);
+      clearError();
+    });
+  });
+  [el.newCreatorNameInput, el.joinNameInput].forEach((input) => {
     input.addEventListener("input", () => {
       setInputError(input, false);
       clearError();

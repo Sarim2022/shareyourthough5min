@@ -12,8 +12,8 @@ body {
 body {
   margin: 0;
   font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: #ffd6e8;
-  color: rgba(28, 14, 24, 0.92);
+  background: linear-gradient(135deg, #f6fbff 0%, #e9f3ff 52%, #dcecff 100%);
+  color: rgba(16, 36, 68, 0.94);
 }
 
 .page {
@@ -27,9 +27,9 @@ body {
 .card {
   width: min(92vw, 560px);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  box-shadow: 0 18px 45px rgba(255, 105, 180, 0.16);
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 45px rgba(38, 110, 220, 0.16);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -63,17 +63,17 @@ body {
   width: 100%;
   padding: 13px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.35);
-  color: rgba(28, 14, 24, 0.92);
+  border: 1px solid rgba(178, 205, 255, 0.7);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(16, 36, 68, 0.94);
   outline: none;
   font-size: 15px;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
 .input:focus {
-  border-color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.48);
+  border-color: rgba(92, 145, 240, 0.95);
+  background: #ffffff;
 }
 
 .input.input-error {
@@ -99,16 +99,16 @@ body {
   padding: 12px 16px;
   font-size: 15px;
   font-weight: 600;
-  color: rgba(35, 13, 26, 0.92);
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 10px 25px rgba(255, 105, 180, 0.15);
+  color: #ffffff;
+  background: linear-gradient(135deg, #4f89ff 0%, #2b69df 100%);
+  box-shadow: 0 10px 25px rgba(43, 105, 223, 0.24);
   cursor: pointer;
   transition: transform 120ms ease, background 120ms ease;
 }
 
 .button:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.72);
+  background: linear-gradient(135deg, #5d92ff 0%, #2f72f0 100%);
 }
 
 .button:active {
@@ -116,13 +116,14 @@ body {
 }
 
 .button.ghost {
-  background: rgba(255, 255, 255, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: rgba(16, 36, 68, 0.94);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(178, 205, 255, 0.75);
   text-decoration: none;
 }
 
 .button.danger {
-  background: rgba(255, 85, 120, 0.82);
+  background: linear-gradient(135deg, #ff5b73 0%, #e24267 100%);
   color: #fff;
 }
 
@@ -157,7 +158,7 @@ body {
 }
 
 .link {
-  color: rgba(45, 13, 35, 0.95);
+  color: rgba(27, 74, 170, 0.95);
   text-decoration: underline;
   word-break: break-all;
 }
@@ -181,8 +182,8 @@ body {
   align-items: center;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(178, 205, 255, 0.75);
   font-size: 12px;
   font-weight: 600;
   opacity: 0.95;
@@ -206,8 +207,8 @@ body {
   margin: 0;
   padding: 12px 13px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(178, 205, 255, 0.68);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -232,8 +233,8 @@ body {
 .result-item {
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.33);
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(178, 205, 255, 0.68);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -247,7 +248,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(18, 6, 13, 0.25);
+  background: rgba(22, 49, 94, 0.24);
 }
 
 .modal[hidden] {
@@ -257,8 +258,8 @@ body {
 .modal-content {
   width: min(92vw, 460px);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(178, 205, 255, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   padding: 20px;
