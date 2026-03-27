@@ -1,9 +1,14 @@
 (() => {
   const SHARE_TTL_MS = 5 * 60 * 1000;
   const SHARE_PARAM = "id";
+  const DEFAULT_REPLY_TEXT = "Replying to this message...";
 
+  const nameInput = document.getElementById("nameInput");
   const textInput = document.getElementById("textInput");
   const getLinkBtn = document.getElementById("getLinkBtn");
+  const copyBtn = document.getElementById("copyBtn");
+  const whatsAppBtn = document.getElementById("whatsAppBtn");
+  const replyBtn = document.getElementById("replyBtn");
   const errorEl = document.getElementById("error");
   const linkArea = document.getElementById("linkArea");
   const shareLinkEl = document.getElementById("shareLink");
@@ -11,6 +16,7 @@
   const composeView = document.getElementById("composeView");
   const sharedView = document.getElementById("sharedView");
   const sharedTextEl = document.getElementById("sharedText");
+  const senderMetaEl = document.getElementById("senderMeta");
   const countdownEl = document.getElementById("countdown");
 
   function showError(msg) {
@@ -70,7 +76,7 @@
 
   function encodeSharePayload(text, expiresAt) {
     // Self-contained payload so other devices can decode it without a backend.
-    const payload = JSON.stringify({ text, expiresAt });
+    const payload = JSON.stringify({ text, expiresAt, sender: getSenderName() });
     const bytes = utf8ToBytes(payload);
     return base64UrlEncode(bytes);
   }
@@ -84,6 +90,59 @@
       return parsed;
     } catch {
       return null;
+    }
+  }
+
+  function randomNickname() {
+    const adjectives = ["Blue", "Swift", "Bright", "Calm", "Brave", "Sunny", "Lucky", "Quiet"];
+    const animals = ["Fox", "Tiger", "Owl", "Panda", "Wolf", "Falcon", "Dolphin", "Koala"];
+    const a = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const b = animals[Math.floor(Math.random() * animals.length)];
+    const n = Math.floor(100 + Math.random() * 900);
+    return `${a}${b}${n}`;
+  }
+
+  function getSenderName() {
+    const explicit = (nameInput.value || "").trim();
+    if (explicit) return explicit;
+    return randomNickname();
+  }
+
+  function showComposeView() {
+    sharedView.hidden = true;
+    composeView.hidden = false;
+    linkArea.hidden = true;
+    copyBtn.hidden = true;
+    whatsAppBtn.hidden = true;
+    countdownEl.textContent = "";
+  }
+
+  function buildWhatsAppUrl(shareUrl) {
+    return `https://wa.me/?text=${encodeURIComponent(`Check this message: ${shareUrl}`)}`;
+  }
+
+  async function copyTextToClipboard(value) {
+    if (!value) return false;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch {}
+
+    try {
+      const temp = document.createElement("textarea");
+      temp.value = value;
+      temp.setAttribute("readonly", "");
+      temp.style.position = "absolute";
+      temp.style.left = "-9999px";
+      document.body.appendChild(temp);
+      temp.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(temp);
+      return !!ok;
+    } catch {
+      return false;
     }
   }
 
@@ -135,6 +194,30 @@
     shareLinkEl.href = shareUrl;
     shareLinkEl.textContent = shareUrl;
     linkArea.hidden = false;
+    copyBtn.hidden = false;
+    whatsAppBtn.hidden = false;
+    whatsAppBtn.href = buildWhatsAppUrl(shareUrl);
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    clearError();
+    const value = shareLinkEl.textContent || shareLinkEl.href || "";
+    const ok = await copyTextToClipboard(value);
+    if (!ok) {
+      showError("Could not copy the link. Please copy it manually.");
+      return;
+    }
+    copyBtn.textContent = "Copied!";
+    window.setTimeout(() => {
+      copyBtn.textContent = "Copy link";
+    }, 1200);
+  });
+
+  replyBtn.addEventListener("click", () => {
+    clearError();
+    showComposeView();
+    textInput.value = DEFAULT_REPLY_TEXT;
+    textInput.focus();
   });
 
   // If opened via a share link, display the stored text.
@@ -157,6 +240,13 @@
     composeView.hidden = true;
     sharedView.hidden = false;
     sharedTextEl.textContent = record.text;
+    if (record.sender && typeof record.sender === "string") {
+      senderMetaEl.textContent = `Sent by: ${record.sender}`;
+      senderMetaEl.hidden = false;
+    } else {
+      senderMetaEl.textContent = "";
+      senderMetaEl.hidden = true;
+    }
     setCountdown(record.expiresAt);
   })();
 })();

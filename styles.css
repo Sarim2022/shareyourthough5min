@@ -45,6 +45,13 @@ body {
   letter-spacing: -0.02em;
 }
 
+.success {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
 .label {
   display: block;
   font-size: 13px;
@@ -78,6 +85,9 @@ body {
 }
 
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   appearance: none;
   border: 0;
   border-radius: 14px;
@@ -98,6 +108,12 @@ body {
 
 .button:active {
   transform: translateY(0);
+}
+
+.button.ghost {
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  text-decoration: none;
 }
 
 .error {
@@ -162,6 +178,12 @@ body {
 .countdown {
   font-size: 13px;
   font-weight: 600;
+  opacity: 0.85;
+}
+
+.sender-meta {
+  margin: 12px 0 0;
+  font-size: 14px;
   opacity: 0.85;
 }
 

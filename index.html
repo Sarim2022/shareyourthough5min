@@ -13,14 +13,30 @@
           <h1 class="title">Broadcast your text for 5 min</h1>
 
           <div id="sharedView" class="shared-view" hidden>
+            <p class="success">Well done!</p>
             <div class="shared-meta">
               <span class="pill">Expires soon</span>
               <span id="countdown" class="countdown" aria-live="polite"></span>
             </div>
+            <p id="senderMeta" class="sender-meta"></p>
             <p class="shared-text" id="sharedText"></p>
+            <div class="actions">
+              <button id="replyBtn" class="button" type="button">Reply it?</button>
+            </div>
           </div>
 
           <div id="composeView" class="compose-view">
+            <label class="label" for="nameInput">Sender name (optional)</label>
+            <input
+              id="nameInput"
+              class="input"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              maxlength="40"
+              placeholder="Your name (or auto nickname)"
+            />
+
             <label class="label" for="textInput">Text</label>
             <input
               id="textInput"
@@ -36,6 +52,12 @@
               <button id="getLinkBtn" class="button" type="button">
                 Get share link
               </button>
+              <button id="copyBtn" class="button ghost" type="button" hidden>
+                Copy link
+              </button>
+              <a id="whatsAppBtn" class="button ghost" href="#" target="_blank" rel="noopener" hidden>
+                Share via WhatsApp
+              </a>
             </div>
 
             <p id="error" class="error" role="alert" hidden></p>
